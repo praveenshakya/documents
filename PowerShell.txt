@@ -1,0 +1,39 @@
+# Define the URL
+$url = "https://www.w3schools.com/html/html_tables.asp"
+
+# Fetch the HTML content
+$response = Invoke-WebRequest -Uri $url
+
+# Parse the HTML content
+$html = $response.ParsedHtml
+
+# Locate the table (use its index or ID if multiple tables exist)
+$table = $html.getElementsByTagName("table") | Select-Object -First 1
+
+# Extract headers
+$headers = @()
+foreach ($th in $table.getElementsByTagName("th")) {
+    $headers += $th.innerText.Trim()
+}
+
+# Extract rows
+$rows = @()
+foreach ($tr in $table.getElementsByTagName("tr")) {
+    $cells = $tr.getElementsByTagName("td")
+    if ($cells.Count -gt 0) {
+        $row = @{}
+        for ($i = 0; $i -lt $cells.Count; $i++) {
+            $row[$headers[$i]] = $cells[$i].innerText.Trim()
+        }
+        $rows += $row
+    }
+}
+
+# Convert rows to JSON
+$jsonOutput = $rows | ConvertTo-Json -Depth 10 -Compress
+
+# Save JSON to a file
+$outputFile = "table_data.json"
+$jsonOutput | Set-Content -Path $outputFile -Encoding UTF8
+
+Write-Host "Data successfully saved to $outputFile"
