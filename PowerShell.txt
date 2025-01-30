@@ -1,39 +1,39 @@
-# Define the URL
-$url = "https://www.w3schools.com/html/html_tables.asp"
-
-# Fetch the HTML content
-$response = Invoke-WebRequest -Uri $url
-
-# Parse the HTML content
-$html = $response.ParsedHtml
-
-# Locate the table (use its index or ID if multiple tables exist)
-$table = $html.getElementsByTagName("table") | Select-Object -First 1
-
-# Extract headers
-$headers = @()
-foreach ($th in $table.getElementsByTagName("th")) {
-    $headers += $th.innerText.Trim()
-}
-
-# Extract rows
-$rows = @()
-foreach ($tr in $table.getElementsByTagName("tr")) {
-    $cells = $tr.getElementsByTagName("td")
-    if ($cells.Count -gt 0) {
-        $row = @{}
-        for ($i = 0; $i -lt $cells.Count; $i++) {
-            $row[$headers[$i]] = $cells[$i].innerText.Trim()
+- name: Execute PowerShell script and get "Total CPUs"
+  hosts: windows
+  tasks:
+    - name: Run PowerShell script
+      win_shell: |
+        $WarningPreference = "SilentlyContinue"
+        try {
+            $response = Invoke-RestMethod -Uri "https://example.com" -Method 'GET' -Headers $headers
+            if (-not $response) { throw "Response is empty." }
+            $doc = New-Object -ComObject "HTMLFILE"
+            $doc.IHTMLDocument2_write($response)
+            $rows = $doc.getElementsByTagName("tr")
+            if (-not $rows) { throw "No table rows found in response." }
+            $keyvaluepairs = @{}
+            foreach ($row in $rows) {
+                try {
+                    $th = $row.getElementsByTagName("th").item(0)
+                    $td = $row.getElementsByTagName("td").item(0)
+                    if ($th -and $td -and $td.innerText) {
+                        $key = $th.innerText.Trim()
+                        $value = $td.innerText.Trim()
+                        $keyvaluepairs[$key] = $value
+                    }
+                } catch {}
+            }
+            $jsonData = $keyvaluepairs | ConvertTo-Json -Depth 3
+            Write-Output $jsonData
+        } catch {
+            Write-Error "An error occurred: $_"
         }
-        $rows += $row
-    }
-}
+      register: powershell_output
 
-# Convert rows to JSON
-$jsonOutput = $rows | ConvertTo-Json -Depth 10 -Compress
+    - name: Extract "Total CPUs"
+      set_fact:
+        total_cpus: "{{ powershell_output.stdout | from_json | json_query('\"Total CPUs\"') }}"
 
-# Save JSON to a file
-$outputFile = "table_data.json"
-$jsonOutput | Set-Content -Path $outputFile -Encoding UTF8
-
-Write-Host "Data successfully saved to $outputFile"
+    - name: Display "Total CPUs"
+      debug:
+        msg: "Total CPUs: {{ total_cpus }}"
